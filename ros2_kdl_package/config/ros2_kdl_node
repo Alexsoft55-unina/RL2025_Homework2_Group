@@ -1,0 +1,8 @@
+ros2_kdl_node:
+  ros__parameters:
+    traj_duration: 255
+    acc_duration: 86
+    total_time: 150
+    trajectory_len: 1
+    Kp: 1
+    end_position: [0.0 0.1 0.5 1.0] 
