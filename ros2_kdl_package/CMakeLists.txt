@@ -7,13 +7,14 @@ endif()
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
 find_package(orocos_kdl REQUIRED)
 find_package(urdf REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(kdl_parser REQUIRED)
-find_package(sensor_msgs REQUIRED)
-find_package(rclcpp REQUIRED)
-find_package(std_msgs REQUIRED)
+
 
 # uncomment the following section in order to fill in
 # further dependencies manually.
@@ -36,20 +37,25 @@ ament_target_dependencies(ros2_kdl_node
 install(TARGETS ros2_kdl_node
   DESTINATION lib/${PROJECT_NAME})
 
-add_executable(ros2_kdl_node_example src/ros2_kdl_node_example.cpp)
-target_include_directories(ros2_kdl_node_example PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>
-  ${EIGEN3_INCLUDE_DIRS})
-target_compile_features(ros2_kdl_node_example PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
-
-ament_target_dependencies(ros2_kdl_node_example 
-  orocos_kdl
-  rclcpp
+install(
+  DIRECTORY config launch
+  DESTINATION share/${PROJECT_NAME}
 )
 
-install(TARGETS ros2_kdl_node_example
-  DESTINATION lib/${PROJECT_NAME})
+#add_executable(ros2_kdl_node_example src/ros2_kdl_node_example.cpp)
+#target_include_directories(ros2_kdl_node_example PUBLIC
+#  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+#  $<INSTALL_INTERFACE:include>
+#  ${EIGEN3_INCLUDE_DIRS})
+#target_compile_features(ros2_kdl_node_example PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
+#
+#ament_target_dependencies(ros2_kdl_node_example 
+#  orocos_kdl
+#  rclcpp
+#)
+
+#install(TARGETS ros2_kdl_node_example
+#  DESTINATION lib/${PROJECT_NAME})
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

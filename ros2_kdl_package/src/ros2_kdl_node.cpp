@@ -30,9 +30,33 @@ class Iiwa_pub_sub : public rclcpp::Node
 {
     public:
         Iiwa_pub_sub()
-        : Node("ros2_kdl_node"), 
+        : Node("ros2_kdl_node"),
         node_handle_(std::shared_ptr<Iiwa_pub_sub>(this))
         {
+            //all default value to 0
+            declare_parameter("traj_duration", rclcpp::PARAMETER_DOUBLE);
+            declare_parameter("acc_duration", rclcpp::PARAMETER_DOUBLE);
+            declare_parameter("total_time", rclcpp::PARAMETER_DOUBLE);
+            declare_parameter("trajectory_len", rclcpp::PARAMETER_DOUBLE);
+            declare_parameter("Kp", rclcpp::PARAMETER_DOUBLE);
+            declare_parameter("end_position", rclcpp::PARAMETER_DOUBLE_ARRAY);
+
+            get_parameter("traj_duration", this->traj_duration_);  
+            get_parameter("acc_duration", this->acc_duration_);
+            get_parameter("total_time", this->total_time_);
+            get_parameter("trajectory_len", this->trajectory_len_);
+            get_parameter("Kp", this->Kp_); 
+            std::vector<double> end_position_ = this->get_parameter("end_position").as_double_array();
+
+            RCLCPP_INFO(this->get_logger(), "traj_duration: %f", this->traj_duration_);
+                       RCLCPP_INFO(this->get_logger(), "acc_duration: %f", this->acc_duration_);
+            RCLCPP_INFO(this->get_logger(), "total_time: %f", this->total_time_);
+            RCLCPP_INFO(this->get_logger(), "trajectory_len: %f", this->trajectory_len_);
+            RCLCPP_INFO(this->get_logger(), "Kp: %f", this->Kp_);
+            this->traj_end_position_ << end_position_[0],end_position_[1],end_position_[2];
+            RCLCPP_INFO(this->get_logger(), "end_position:[%f %f %f]", this->traj_end_position_(0), this->traj_end_position_(1),this->traj_end_position_(2));
+            
+            
             // declare cmd_interface parameter (position, velocity)
             declare_parameter("cmd_interface", "position"); // default to "position"
             get_parameter("cmd_interface", cmd_interface_);
@@ -112,9 +136,12 @@ class Iiwa_pub_sub : public rclcpp::Node
 
             // Compute EE frame
             init_cart_pose_ = robot_->getEEFrame();
-            // std::cout << "The initial EE pose is: " << std::endl;  
-            // std::cout << init_cart_pose_ <<std::endl;
-
+            /*
+            RCLCPP_INFO(this->get_logger(), "The initial EE pose is: ");  
+            for (int i=0; i<4; i++){
+                RCLCPP_INFO(this->get_logger(), "%f %f %f %f", init_cart_pose_([i*4+0], init_cart_pose_.M.data[i*4+1], init_cart_pose_.M.data[i*4+2], init_cart_pose_.M.data[i*4+3]);  
+            }
+            */
             // Compute IK
             KDL::JntArray q(nj);
             robot_->getInverseKinematics(init_cart_pose_, q);
@@ -211,11 +238,11 @@ class Iiwa_pub_sub : public rclcpp::Node
             iteration_ = iteration_ + 1;
 
             // define trajectory
-            double total_time = 1.5; // 
-            int trajectory_len = 150; // 
+            double total_time = this->total_time_; // 
+            int trajectory_len = this->trajectory_len_; // 
             int loop_rate = trajectory_len / total_time;
             double dt = 1.0 / loop_rate;
-            int Kp = 5;
+            int Kp = (int)(this->Kp_);
             t_+=dt;
 
             if (t_ < total_time){
@@ -390,7 +417,13 @@ class Iiwa_pub_sub : public rclcpp::Node
         std::string s_type_;
 
         KDL::Frame init_cart_pose_;
-};
+        
+        double traj_duration_,acc_duration_, total_time_, trajectory_len_, Kp_;
+
+        Eigen::Vector3d traj_end_position_;
+        
+    };
+    
 
  
 int main( int argc, char** argv )

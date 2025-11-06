@@ -32,3 +32,5 @@ Eigen::VectorXd KDLController::idCntr(KDL::Frame &_desPos,
 
 }
 
+KDL::JntArray KDLController::velocity_ctrl_null
+
