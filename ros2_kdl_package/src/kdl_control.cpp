@@ -1,3 +1,5 @@
+
+
 #include "kdl_control.h"
 
 KDLController::KDLController(KDLRobot &_robot)
@@ -23,13 +25,29 @@ Eigen::VectorXd KDLController::idCntr(KDL::JntArray &_qd,
             + robot_->getCoriolis() + robot_->getGravity() /*friction compensation?*/;
 }
 
-Eigen::VectorXd KDLController::idCntr(KDL::Frame &_desPos,
+/* Eigen::VectorXd KDLController::idCntr(KDL::Frame &_desPos,
                                       KDL::Twist &_desVel,
                                       KDL::Twist &_desAcc,
                                       double _Kpp, double _Kpo,
                                       double _Kdp, double _Kdo)
 {
 
-}
+} */
 
+KDL::JntArray KDLController::velocity_ctrl_null(KDL::Jacobian J, 
+                                    Eigen::Vector3d error_position,
+                                    double Kp)
+                                                
+{
+    unsigned int nj = robot_->getNrJnts();
+    Eigen::MatrixXd J_pinv = pseudoinverse(robot_->getEEJacobian().data);
+    
+    Eigen::VectorXd qd_vec = J_pinv * error_position * Kp;
+
+    KDL::JntArray qd(nj);
+
+    for (int i =0; i<nj; i++) qd.data << qd_vec(i);
+    
+    return qd;
+}
 
