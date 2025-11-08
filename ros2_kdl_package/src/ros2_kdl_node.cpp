@@ -59,6 +59,8 @@ class Iiwa_pub_sub : public rclcpp::Node
             {
                 RCLCPP_ERROR(get_logger(),"Selected cmd interface is not valid! Use 'position', 'velocity' or 'effort' instead..."); return;
             }
+            
+            cmd_interface_="velocity";   ////////////////
 
             // declare traj_type parameter (linear, circular)
             declare_parameter("traj_type", "linear");
@@ -98,6 +100,9 @@ class Iiwa_pub_sub : public rclcpp::Node
                 std::cout << "Failed to retrieve robot_description param!";
             }
             robot_ = std::make_shared<KDLRobot>(robot_tree);  
+            
+            controller_ = KDLController(*robot_);//////////////
+
             
             // Create joint array
             unsigned int nj = robot_->getNrJnts();
@@ -150,9 +155,10 @@ class Iiwa_pub_sub : public rclcpp::Node
 
             // Plan trajectory
             double traj_duration = traj_duration_, acc_duration = acc_duration_, traj_radius = 0.15;
-
+		
             // Retrieve the first trajectory point
             if(traj_type_ == "linear"){
+            RCLCPP_INFO(get_logger()," linear end [%f,%f,%f]", end_position(0),end_position(1),end_position(2));////////
                 planner_ = KDLPlanner(traj_duration, acc_duration, init_position, end_position); // currently using trapezoidal velocity profile
                 if(s_type_ == "trapezoidal")
                 {
@@ -161,6 +167,7 @@ class Iiwa_pub_sub : public rclcpp::Node
                 {
                     p_ = planner_.linear_traj_cubic(t_);
                 }
+                
             } 
             else if(traj_type_ == "circular")
             {
@@ -224,6 +231,10 @@ class Iiwa_pub_sub : public rclcpp::Node
 
     private:
     
+    
+    KDLController controller_;////////////////////////////
+
+    
     // Parameters
 	double traj_duration_;
 	double total_time_;
@@ -244,6 +255,8 @@ class Iiwa_pub_sub : public rclcpp::Node
             double dt = 1.0 / loop_rate;
             int Kp = Kp_;
             t_+=dt;
+            
+            
 
             if (t_ < total_time){
 
@@ -296,9 +309,23 @@ class Iiwa_pub_sub : public rclcpp::Node
                     robot_->getInverseKinematics(nextFrame, joint_positions_cmd_);
                 }
                 else if(cmd_interface_ == "velocity"){
-                    // Compute differential IK
-                    Vector6d cartvel; cartvel << p_.vel + Kp*error, o_error;
-                    joint_velocities_cmd_.data = pseudoinverse(robot_->getEEJacobian().data)*cartvel;
+                    Eigen::MatrixXd JntLimits_ (7,2);
+                    JntLimits_ = robot_->getJntLimits();
+                    Eigen::VectorXd q_min(7);
+                    q_min = JntLimits_.col(0);
+                    for (unsigned int i = 0; i<7; i++) {
+                        RCLCPP_INFO(this->get_logger(), "q_min( %d )= %f" , i, q_min(i));      
+                    }
+
+
+                    Eigen::Matrix<double,6,1> error_position;
+                    error_position << error, o_error;   
+                    joint_velocities_cmd_ = controller_.velocity_ctrl_null(error_position, Kp);
+                    
+                    //Vector6d cartvel; cartvel << p_.vel + Kp*error, o_error;
+                    //  joint_velocities_cmd_.data = pseudoinverse(robot_->getEEJacobian().data)*cartvel;
+
+                                    
                 }
                 else if(cmd_interface_ == "effort"){
                     joint_efforts_cmd_.data[0] = 0.1*std::sin(2*M_PI*t_/total_time);
