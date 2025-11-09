@@ -293,12 +293,13 @@ def generate_launch_description():
         ],
         condition=UnlessCondition(OrSubstitution(use_planning, use_sim)),
     )
+
     iiwa_simulation_world = PathJoinSubstitution(
         [FindPackageShare(description_package),
-            'gazebo/worlds', 'aruco_world.sdf']
+            'gazebo/worlds', 'empty_world']
     )
 
-    declared_arguments.append(DeclareLaunchArgument('gz_args', default_value=iiwa_simulation_world,
+    declared_arguments.append(DeclareLaunchArgument('gz_args', default_value='-r -v 1 empty.sdf',
                               description='Arguments for gz_sim'),)
         
     """declared_arguments.append(DeclareLaunchArgument('gz_args', default_value=iiwa_simulation_world,
@@ -317,6 +318,30 @@ def generate_launch_description():
             launch_arguments={'gz_args': LaunchConfiguration('gz_args')}.items(),
             condition=IfCondition(use_sim),
     )
+
+        # 2. Definisci il percorso completo del tuo file SDF
+    pkg_share = FindPackageShare('iiwa_description')   
+    aruco_model_path = PathJoinSubstitution([
+        pkg_share,
+        'gazebo',
+        'models',
+        'aruco_tag',
+        'model.sdf'  # O 'model.config' se spawni il modello dalla sua cartella
+    ])
+
+    spawn_aruco_tag = Node(
+        package='ros_gz_sim',
+        executable='create',
+        arguments=[
+            '-entity', 'aruco_tag_01',
+            '-file', aruco_model_path,  # Il percorso viene passato qui
+            '-x', '1.0',
+            '-y', '1.0',
+            '-z', '0.5'
+        ],
+        output='screen'
+    )
+
 
     spawn_entity = Node(
         package='ros_gz_sim',
@@ -394,7 +419,7 @@ def generate_launch_description():
             '-r', '/camera:=/videocamera',
         ],
         output='screen'
-    )    
+    )
 
     nodes = [
         gazebo,
@@ -408,7 +433,8 @@ def generate_launch_description():
         delay_rviz_after_joint_state_broadcaster_spawner,
         external_torque_broadcaster_spawner,
         delay_robot_controller_spawner_after_joint_state_broadcaster_spawner,
-        bridge_camera
+        spawn_aruco_tag,
+        bridge_camera, 
     ]
 
     return LaunchDescription(declared_arguments + nodes)

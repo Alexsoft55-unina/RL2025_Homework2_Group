@@ -54,5 +54,5 @@
         namespace="$(arg namespace)"
         prefix="$(arg prefix)"
         />
-        
+
 </robot>

@@ -1,4 +1,8 @@
+
+
 #include "kdl_control.h"
+
+KDLController::KDLController(){}
 
 KDLController::KDLController(KDLRobot &_robot)
 {
@@ -23,13 +27,65 @@ Eigen::VectorXd KDLController::idCntr(KDL::JntArray &_qd,
             + robot_->getCoriolis() + robot_->getGravity() /*friction compensation?*/;
 }
 
-Eigen::VectorXd KDLController::idCntr(KDL::Frame &_desPos,
+/* Eigen::VectorXd KDLController::idCntr(KDL::Frame &_desPos,
                                       KDL::Twist &_desVel,
                                       KDL::Twist &_desAcc,
                                       double _Kpp, double _Kpo,
                                       double _Kdp, double _Kdo)
 {
 
-}
+} */
 
+KDL::JntArray KDLController::velocity_ctrl_null(Eigen::Matrix<double,6,1> error_position,
+                                    int Kp)
+                                                
+{
+    unsigned int nj = robot_->getNrJnts();
+
+
+
+
+    Eigen::MatrixXd J;
+    J = robot_->getEEJacobian().data;
+
+    Eigen::MatrixXd I;
+    I = Eigen::MatrixXd::Identity(nj,nj);
+
+    Eigen::MatrixXd JntLimits_ (nj,2);
+    JntLimits_ = robot_->getJntLimits();
+
+    Eigen::VectorXd q_min(nj);
+    Eigen::VectorXd q_max(nj);
+    q_min = JntLimits_.col(0);
+    q_max = JntLimits_.col(1);
+
+    Eigen::VectorXd q(nj);
+    q  = robot_->getJntValues();
+
+    double lambda = 50;
+
+    Eigen::VectorXd q0_dot(nj);
+    for (unsigned int i = 0; i<nj; i++) {
+        
+        double L =(q_max(i) - q_min(i))*(q_max(i) - q_min(i));
+
+        double G = (2*q(i) - q_max(i) - q_min(i));
+
+        double D = (q_max(i)- q(i))*(q(i)- q_min(i));
+
+        q0_dot(i) = 1/lambda*L*G/(D*D);
+
+    }
+
+    Eigen::MatrixXd J_pinv = pseudoinverse(robot_->getEEJacobian().data);
+    
+    Eigen::VectorXd qd_vec(nj);
+    qd_vec = J_pinv * error_position * Kp + (I-J_pinv*J)*q0_dot; 
+
+    KDL::JntArray qd(nj);
+
+    qd.data = qd_vec;
+
+    return qd;
+}
 

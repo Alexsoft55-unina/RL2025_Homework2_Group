@@ -53,12 +53,28 @@ class Iiwa_pub_sub : public rclcpp::Node
             // declare cmd_interface parameter (position, velocity)
             declare_parameter("cmd_interface", "position"); // default to "position"
             get_parameter("cmd_interface", cmd_interface_);
+            //cmd_interface_="velocity";   //DEBUG
+
             RCLCPP_INFO(get_logger(),"Current cmd interface is: '%s'", cmd_interface_.c_str());
 
             if (!(cmd_interface_ == "position" || cmd_interface_ == "velocity" || cmd_interface_ == "effort" ))
             {
                 RCLCPP_ERROR(get_logger(),"Selected cmd interface is not valid! Use 'position', 'velocity' or 'effort' instead..."); return;
             }
+            
+
+            // declare ctrl parameter (velocity_ctrl, velocity_ctrl_null)
+            declare_parameter("ctrl", "velocity_ctrl"); // default to "velocity_ctrl"
+            get_parameter("ctrl", ctrl_);
+            RCLCPP_INFO(get_logger(),"Current ctrl is: '%s'", ctrl_.c_str());
+
+             if (!(cmd_interface_ == "position" || cmd_interface_ == "velocity" || cmd_interface_ == "effort" ))
+            {
+                RCLCPP_ERROR(get_logger(),"Selected ctrl is not valid! Use 'velocity_ctrl' or 'velocity_ctrl_null instead..."); return;
+            }
+
+
+
 
             // declare traj_type parameter (linear, circular)
             declare_parameter("traj_type", "linear");
@@ -98,6 +114,9 @@ class Iiwa_pub_sub : public rclcpp::Node
                 std::cout << "Failed to retrieve robot_description param!";
             }
             robot_ = std::make_shared<KDLRobot>(robot_tree);  
+            
+            controller_ = KDLController(*robot_);//////////////
+
             
             // Create joint array
             unsigned int nj = robot_->getNrJnts();
@@ -150,9 +169,10 @@ class Iiwa_pub_sub : public rclcpp::Node
 
             // Plan trajectory
             double traj_duration = traj_duration_, acc_duration = acc_duration_, traj_radius = 0.15;
-
+		
             // Retrieve the first trajectory point
             if(traj_type_ == "linear"){
+            RCLCPP_INFO(get_logger()," linear end [%f,%f,%f]", end_position(0),end_position(1),end_position(2));////////
                 planner_ = KDLPlanner(traj_duration, acc_duration, init_position, end_position); // currently using trapezoidal velocity profile
                 if(s_type_ == "trapezoidal")
                 {
@@ -161,6 +181,7 @@ class Iiwa_pub_sub : public rclcpp::Node
                 {
                     p_ = planner_.linear_traj_cubic(t_);
                 }
+                
             } 
             else if(traj_type_ == "circular")
             {
@@ -224,6 +245,10 @@ class Iiwa_pub_sub : public rclcpp::Node
 
     private:
     
+    
+    KDLController controller_;
+
+    
     // Parameters
 	double traj_duration_;
 	double total_time_;
@@ -244,6 +269,8 @@ class Iiwa_pub_sub : public rclcpp::Node
             double dt = 1.0 / loop_rate;
             int Kp = Kp_;
             t_+=dt;
+            
+            
 
             if (t_ < total_time){
 
@@ -296,9 +323,16 @@ class Iiwa_pub_sub : public rclcpp::Node
                     robot_->getInverseKinematics(nextFrame, joint_positions_cmd_);
                 }
                 else if(cmd_interface_ == "velocity"){
-                    // Compute differential IK
-                    Vector6d cartvel; cartvel << p_.vel + Kp*error, o_error;
-                    joint_velocities_cmd_.data = pseudoinverse(robot_->getEEJacobian().data)*cartvel;
+                    if(ctrl_=="velocity_ctrl"){
+                        Vector6d cartvel; cartvel << p_.vel + Kp*error, o_error;
+                        joint_velocities_cmd_.data = pseudoinverse(robot_->getEEJacobian().data)*cartvel;
+                    }
+                    else if(ctrl_=="velocity_ctrl_null"){
+                        Eigen::Matrix<double,6,1> error_position;
+                        error_position << error, o_error;   
+                        joint_velocities_cmd_ = controller_.velocity_ctrl_null(error_position, Kp);
+                    }
+               
                 }
                 else if(cmd_interface_ == "effort"){
                     joint_efforts_cmd_.data[0] = 0.1*std::sin(2*M_PI*t_/total_time);
@@ -413,6 +447,7 @@ class Iiwa_pub_sub : public rclcpp::Node
         bool joint_state_available_;
         double t_;
         std::string cmd_interface_;
+        std::string ctrl_;
         std::string traj_type_;
         std::string s_type_;
 

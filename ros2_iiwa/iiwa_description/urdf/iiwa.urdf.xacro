@@ -7,11 +7,6 @@
     <color rgba="0.5 0.5 0.5 1.0"/>
   </material>
 
-
-  <material name="blue">
-    <color rgba="0.0 0.0 0.1 1.0"/>
-  </material>
-
   <link name="${prefix}iiwa_base" type="fixed"/>
 
   <joint name="${prefix}iiwa_root_joint" type="fixed">
@@ -180,8 +175,9 @@
       </inertial>
   </link>
   <link name="${prefix}tool0"/>
+
   
-  <joint name="camera_joint" type="fixed">
+<joint name="camera_joint" type="fixed">
 <parent link="${prefix}tool0"/>
 <child link="camera_link"/>
 <origin xyz="0.0 0 0.0" rpy="3.14 -1.57 0"/>
@@ -224,8 +220,6 @@
   </sensor>
 </gazebo>
  
-
-
   <joint name="${prefix}joint_a1" type="revolute">
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <parent link="${prefix}link_0"/>
@@ -281,8 +275,6 @@
       <child link="${prefix}tool0"/>
       <axis xyz="0 0 0"/>
   </joint>
-  
-  
 
   </xacro:macro>
 </robot>

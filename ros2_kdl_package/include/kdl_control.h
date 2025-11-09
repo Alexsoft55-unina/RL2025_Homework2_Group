@@ -10,6 +10,7 @@ class KDLController
 
 public:
 
+    KDLController();
     KDLController(KDLRobot &_robot);
 
     Eigen::VectorXd idCntr(KDL::JntArray &_qd,
@@ -18,16 +19,17 @@ public:
                            double _Kp,
                            double _Kd);
 
-    Eigen::VectorXd idCntr(KDL::Frame &_desPos,
+/*     Eigen::VectorXd idCntr(KDL::Frame &_desPos,
                            KDL::Twist &_desVel,
                            KDL::Twist &_desAcc,
                            double _Kpp,
                            double _Kpo,
                            double _Kdp,
                            double _Kdo);
-    
+                            */
 
-   Eigen::VectorXd velocity_ctrl_null(const KDL::Frame &desFrame, double Kp, double lambda);
+    KDL::JntArray velocity_ctrl_null(Eigen::Matrix<double,6,1> error_position,
+                                    int Kp);
 
 private:
 
