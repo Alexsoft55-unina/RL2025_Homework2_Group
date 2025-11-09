@@ -17,7 +17,7 @@ from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument, Regi
 from launch.conditions import IfCondition, UnlessCondition
 from launch.event_handlers import OnProcessExit, OnProcessStart
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import Command, FindExecutable, LaunchConfiguration, PathJoinSubstitution, OrSubstitution
+from launch.substitutions import Command, FindExecutable, LaunchConfiguration, PathJoinSubstitution, OrSubstitution, TextSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 
@@ -296,20 +296,21 @@ def generate_launch_description():
 
     iiwa_simulation_world = PathJoinSubstitution(
         [FindPackageShare(description_package),
-            'gazebo/worlds', 'empty_world']
+            'gazebo/worlds', 'aruco_tag']
+    )
+    
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            'gz_args',
+            # default_value ora è una lista di Substitution
+            default_value=[
+                TextSubstitution(text='-r -v 1 '),  # La tua stringa (nota lo spazio alla fine)
+                iiwa_simulation_world               # Il tuo percorso
+            ],
+            description='Arguments for gz_sim'
+        )
     )
 
-    declared_arguments.append(DeclareLaunchArgument('gz_args', default_value='-r -v 1 empty.sdf',
-                              description='Arguments for gz_sim'),)
-        
-    """declared_arguments.append(DeclareLaunchArgument('gz_args', default_value=iiwa_simulation_world,
-                            description='Arguments for gz_sim'),)"""
-    
-    """
-    export GZ_SIM_RESOURCE_PATH=$GZ_SIM_RESOURCE_PATH:world_simulation_models
-        Siccome il suo empty.world si richiama un ground plane e un sun, assicurati di avere tali modelli installati da qualche
-        parte sul tuo pc, e metti quel percorso nella EV
-    """
     gazebo = IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 [PathJoinSubstitution([FindPackageShare('ros_gz_sim'),
@@ -317,29 +318,6 @@ def generate_launch_description():
                                     'gz_sim.launch.py'])]),
             launch_arguments={'gz_args': LaunchConfiguration('gz_args')}.items(),
             condition=IfCondition(use_sim),
-    )
-
-        # 2. Definisci il percorso completo del tuo file SDF
-    pkg_share = FindPackageShare('iiwa_description')   
-    aruco_model_path = PathJoinSubstitution([
-        pkg_share,
-        'gazebo',
-        'models',
-        'aruco_tag',
-        'model.sdf'  # O 'model.config' se spawni il modello dalla sua cartella
-    ])
-
-    spawn_aruco_tag = Node(
-        package='ros_gz_sim',
-        executable='create',
-        arguments=[
-            '-entity', 'aruco_tag_01',
-            '-file', aruco_model_path,  # Il percorso viene passato qui
-            '-x', '1.0',
-            '-y', '1.0',
-            '-z', '0.5'
-        ],
-        output='screen'
     )
 
 
@@ -410,7 +388,7 @@ def generate_launch_description():
     )
 
     bridge_camera = Node(
-        package='ros_ign_bridge',
+        package='ros_gz_bridge',
         executable='parameter_bridge',
         arguments=[
             '/camera@sensor_msgs/msg/Image@gz.msgs.Image',
@@ -433,7 +411,6 @@ def generate_launch_description():
         delay_rviz_after_joint_state_broadcaster_spawner,
         external_torque_broadcaster_spawner,
         delay_robot_controller_spawner_after_joint_state_broadcaster_spawner,
-        spawn_aruco_tag,
         bridge_camera, 
     ]
 
