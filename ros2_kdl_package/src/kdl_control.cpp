@@ -62,7 +62,7 @@ KDL::JntArray KDLController::velocity_ctrl_null(Eigen::Matrix<double,6,1> error_
     Eigen::VectorXd q(nj);
     q  = robot_->getJntValues();
 
-    double lambda = 1;
+    double lambda = 50;
 
     Eigen::VectorXd q0_dot(nj);
     for (unsigned int i = 0; i<nj; i++) {
