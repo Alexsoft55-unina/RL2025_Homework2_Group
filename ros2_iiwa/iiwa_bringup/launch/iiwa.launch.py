@@ -21,6 +21,24 @@ from launch.substitutions import Command, FindExecutable, LaunchConfiguration, P
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 
+aruco_node = Node(
+    package='aruco_ros',
+    executable='single',
+    name='aruco_single',
+    output='screen',
+    parameters=[{
+        'marker_id': 20,
+        'marker_size': 0.1,
+        'reference_frame': 'camera_link',
+        'marker_frame': 'aruco_marker',
+        'camera_frame': 'camera_link',
+        'aruco_dictionary_id': 3
+    }],
+    remappings=[
+        ('/image', '/camera'),
+        ('/camera_info', '/camera_info')
+    ]
+)
 
 def generate_launch_description():
     # Declare arguments
@@ -412,6 +430,7 @@ def generate_launch_description():
         external_torque_broadcaster_spawner,
         delay_robot_controller_spawner_after_joint_state_broadcaster_spawner,
         bridge_camera, 
+        aruco_node,
     ]
 
     return LaunchDescription(declared_arguments + nodes)
