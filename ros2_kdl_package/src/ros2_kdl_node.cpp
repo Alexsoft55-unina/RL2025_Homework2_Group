@@ -603,16 +603,15 @@ class Iiwa_pub_sub : public rclcpp::Node
 	
 	
 
-// Stop the robot
+// Stop
 std_msgs::msg::Float64MultiArray cmd_msg;
 
 if(cmd_interface_ == "position"){
-    // Mantieni la posizione finale
+ 
     cmd_msg.data.assign(joint_positions_cmd_.data.data(),
                         joint_positions_cmd_.data.data() + joint_positions_cmd_.rows());
 }
 else if(cmd_interface_ == "velocity" || cmd_interface_ == "effort"){
-    // Metti a zero velocità o effort
     cmd_msg.data.resize(joint_velocities_cmd_.rows());
     std::fill(cmd_msg.data.begin(), cmd_msg.data.end(), 0.0);
 }
