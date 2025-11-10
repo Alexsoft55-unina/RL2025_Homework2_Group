@@ -10,3 +10,12 @@ ros2 launch ros2_kdl_package launching.launch.py cmd_interface:=velocity ctrl:=v
 ```
 ros2 launch ros2_kdl_package launching.launch.py cmd_interface:=velocity ctrl:=velocity_ctrl_null
 ```
+sudo apt update -y
+sudo apt-get install ros-humble-ros-gazebo-bridge -y
+sudo apt-get install ros-humble-ros-ign-gazebo -y
+sudo apt-get install ros-humble-joint-state-publisher ros-humble-joint-state-publisher-gui -y
+sudo apt-get install locate nano gedit gh -y
+sudo apt-get install ros-humble-aruco-ros -y
+
+export GZ_SIM_RESOURCE_PATH=$GZ_SIM_RESOURCE_PATH:$HOME/ros2_ws/src/iiwa_description/gazebo/models
+export GZ_SIM_RESOURCE_PATH=$GZ_SIM_RESOURCE_PATH:$HOME/ros2_ws/install/iiwa_description/share/iiwa_description/gazebo/models
