@@ -2,9 +2,8 @@
 <sdf version='1.9'>
   <model name='aruco_tag'>
     <static>true</static>
-    <pose>0.25 -0.43 0.43 2.54 1.57 3.14</pose>
-    <link name='base'>
-      <visual name='base_visual'>
+    <link name='base_link'>
+      <visual name='aruco_visual'>
         <geometry>
           <box>
             <size>0.1 0.1 0.01</size>
@@ -15,7 +14,7 @@
           <specular>0.4 0.4 0.4 1</specular>
           <pbr>
             <metal>
-              <albedo_map>aruco-20.png</albedo_map>
+              <albedo_map>model://aruco_tag/aruco-20.png</albedo_map>
             </metal>
           </pbr>
         </material>

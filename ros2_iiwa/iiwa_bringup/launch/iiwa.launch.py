@@ -21,24 +21,7 @@ from launch.substitutions import Command, FindExecutable, LaunchConfiguration, P
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 
-aruco_node = Node(
-    package='aruco_ros',
-    executable='single',
-    name='aruco_single',
-    output='screen',
-    parameters=[{
-        'marker_id': 20,
-        'marker_size': 0.1,
-        'reference_frame': 'camera_link',
-        'marker_frame': 'aruco_marker',
-        'camera_frame': 'camera_link',
-        'aruco_dictionary_id': 3
-    }],
-    remappings=[
-        ('/image', '/camera'),
-        ('/camera_info', '/camera_info')
-    ]
-)
+
 
 def generate_launch_description():
     # Declare arguments
@@ -314,7 +297,7 @@ def generate_launch_description():
 
     iiwa_simulation_world = PathJoinSubstitution(
         [FindPackageShare(description_package),
-            'gazebo/worlds', 'aruco_tag']
+            'gazebo/worlds', 'aruco_world']
     )
     
     declared_arguments.append(
@@ -412,10 +395,27 @@ def generate_launch_description():
             '/camera@sensor_msgs/msg/Image@gz.msgs.Image',
             '/camera_info@sensor_msgs/msg/CameraInfo@gz.msgs.CameraInfo',
             '--ros-args', 
-            '-r', '/camera:=/videocamera',
+            '--remap', '/camera:=/videocamera',
+            '--remap', '/camera_info:=/videocamera_info',
         ],
         output='screen'
     )
+    aruco_node = Node(
+        package='aruco_ros',
+        executable='single',
+        name='aruco_single',
+        output='screen',
+        parameters=[{
+            'marker_id': 20,
+            'marker_size': 0.1,
+            'marker_frame': 'aruco_marker',
+            'camera_frame': 'camera_link'
+        }],
+        remappings=[
+            ('/image', '/videocamera'),
+            ('/camera_info', '/videocamera_info')
+        ]
+        )
 
     nodes = [
         gazebo,
