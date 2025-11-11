@@ -31,14 +31,13 @@
 
 
 #include "geometry_msgs/msg/pose_stamped.hpp"
-#include "geometry_msgs/msg/point_stamped.hpp"
-#include "geometry_msgs/msg/vector3_stamped.hpp"
+#include "geometry_msgs/msg/transform_stamped.hpp"
 
-
-#include "rclcpp/rclcpp.hpp"
 #include "tf2_ros/transform_broadcaster.h"
 #include "tf2_ros/buffer.h"
 #include "tf2_ros/transform_listener.h"
+
+
 
 
  
@@ -172,16 +171,11 @@ class Iiwa_pub_sub : public rclcpp::Node
             joint_velocities_cmd_.resize(nj); 
             joint_efforts_cmd_.resize(nj); joint_efforts_cmd_.data.setZero();
 
-           // NUOVO CODICE (esplicito e robusto)
+            auto qos_profile = rclcpp::QoS(rclcpp::KeepLast(10)).reliable();
 
-// 1. Definisci un profilo QoS esplicito.
-//    KeepLast(10) = Profondità di 10
-//    .reliable()   = Corrisponde al RELIABLE del publisher
-auto qos_profile = rclcpp::QoS(rclcpp::KeepLast(10)).reliable();
 
-// 2. Passa il profilo QoS alla sottoscrizione
-MarkerPoseSubscriber_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
-    "/aruco_single/pose", qos_profile, std::bind(&Iiwa_pub_sub::aruco_pose_subscriber, this, std::placeholders::_1));
+            MarkerPoseSubscriber_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
+                "/aruco_single/pose", qos_profile, std::bind(&Iiwa_pub_sub::aruco_pose_subscriber, this, std::placeholders::_1));
       
             // Subscriber to jnt states
             jointSubscriber_ = this->create_subscription<sensor_msgs::msg::JointState>(
@@ -289,7 +283,8 @@ MarkerPoseSubscriber_ = this->create_subscription<geometry_msgs::msg::PoseStampe
                 }
                 */
             } 
-
+            std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
+            std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
             // Create msg and publish
             std_msgs::msg::Float64MultiArray cmd_msg;
             cmd_msg.data = desired_commands_;
@@ -391,9 +386,8 @@ MarkerPoseSubscriber_ = this->create_subscription<geometry_msgs::msg::PoseStampe
                         joint_velocities_cmd_ = controller_.velocity_ctrl_null(error_position, Kp);
                     }
                     else if(ctrl_=="vision"){
-                        Eigen::Matrix<double,6,1> error_position;
-                        error_position << error, o_error;   
-                        joint_velocities_cmd_ = controller_.velocity_ctrl_null(error_position, Kp);
+                        Eigen::Vector3d sd(0,0,1);//desired direction
+                        joint_velocities_cmd_ = controller_.vision_ctrl(Kp, cPo_, sd);
                     }
                
                 }
@@ -527,6 +521,8 @@ MarkerPoseSubscriber_ = this->create_subscription<geometry_msgs::msg::PoseStampe
 
         KDL::Frame init_cart_pose_;
         
+        //std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
+        //std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
         
         
         
@@ -619,7 +615,9 @@ MarkerPoseSubscriber_ = this->create_subscription<geometry_msgs::msg::PoseStampe
                 error_position << error, Eigen::Vector3d::Zero();
                 joint_velocities_cmd_ = controller_.velocity_ctrl_null(error_position, Kp);
             } else if (ctrl_ == "vision") {
-                //joint_velocities_cmd_ = controller_.vision_ctrl();
+                
+                Eigen::Vector3d sd(0,0,1);//desired direction
+                joint_velocities_cmd_ = controller_.vision_ctrl(Kp, cPo_, sd);
             }
 
             // Aggiorna robot e pubblica il comando

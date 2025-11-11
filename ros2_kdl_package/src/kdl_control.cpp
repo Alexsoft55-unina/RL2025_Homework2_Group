@@ -1,6 +1,11 @@
 
 
 #include "kdl_control.h"
+#include <stdio.h>
+#include <iostream>
+#include <sstream> // Necessario per std::stringstream
+#include <cstdlib>
+#include "rclcpp/rclcpp.hpp"
 
 KDLController::KDLController(){}
 
@@ -89,17 +94,29 @@ KDL::JntArray KDLController::velocity_ctrl_null(Eigen::Matrix<double,6,1> error_
     return qd;
 }
 
-KDL::JntArray KDLController::vision_ctrl(int Kp, Eigen::Vector3d cPo,Eigen::Vector3d sd, Eigen::Matrix<double,3,3> Rc)
+KDL::JntArray KDLController::vision_ctrl(int Kp, Eigen::Vector3d cPo,Eigen::Vector3d sd )
 {
     unsigned int nj = robot_->getNrJnts();
 
-    Eigen::Matrix<double,3,3> K;
-    K = Kp*Eigen::Matrix<double,3,3>::Identity();
+    Eigen::Matrix<double,3,3> Rc;
+    Rc = toEigen(robot_->getEEFrame().M);
+/*
+    // 1. Crea uno stringstream per "stampare" la matrice
+    std::stringstream ss;
+    ss << Rc;
+
+    // 2. Passa la stringa C-style (.c_str()) al logger
+    RCLCPP_INFO(rclcpp::get_logger("KDLController"),
+                "Block Rotation matrix R: \n%s",
+                ss.str().c_str());
+*/
+    Eigen::MatrixXd K(nj,nj);
+    K = Kp*K.Identity(nj,nj);
 
     Eigen::Matrix<double,6,6> R =Eigen::Matrix<double,6,6>::Zero();
 
-    R.block<3, 3>(0, 0) = Rc;
-    R.block<3, 3>(3, 3) = Rc;
+    R.block<3, 3>(0, 0) = Rc;//.transpose();
+    R.block<3, 3>(3, 3) = Rc;//.transpose();
 
     Eigen::Vector3d s;
     for (int i=0; i<3; i++){
@@ -108,17 +125,17 @@ KDL::JntArray KDLController::vision_ctrl(int Kp, Eigen::Vector3d cPo,Eigen::Vect
     Eigen::Matrix<double,3,3> L1;
     L1 = -1/cPo.norm()* (Eigen::Matrix3d::Identity() - s*s.transpose());
 
-    Eigen::Matrix3d S_skew;
+    Eigen::Matrix3d S_skew = Eigen::Matrix3d::Zero();
     S_skew <<     0, -s.z(),  s.y(),
                  s.z(),      0, -s.x(),
                 -s.y(),  s.x(),      0;
 
+
     Eigen::Matrix<double,3,3> L2;
     L2 = S_skew;
 
-    Eigen::Matrix<double, 3, Eigen::Dynamic> L;
+    Eigen::Matrix<double,3,6> L;
 
-    L = Eigen::Matrix<double,3,6>::Zero();
     L.block<3, 3>(0, 0) = L1;
     L.block<3, 3>(0, 3) = L2;
     
@@ -131,6 +148,7 @@ KDL::JntArray KDLController::vision_ctrl(int Kp, Eigen::Vector3d cPo,Eigen::Vect
     Eigen::MatrixXd Jc;
     Jc  = J;
 
+    
     Eigen::MatrixXd I;
     I = Eigen::MatrixXd::Identity(nj,nj);
 
@@ -163,9 +181,10 @@ KDL::JntArray KDLController::vision_ctrl(int Kp, Eigen::Vector3d cPo,Eigen::Vect
     Eigen::MatrixXd N (nj,nj);
 
     N = I - pseudoinverse(J)*J;
-
+    
+    Eigen::MatrixXd J_pinv = pseudoinverse(L*J);
     KDL::JntArray qd(nj);
-    qd.data = K * pseudoinverse(L*J)*sd + N * q0_dot;
- 
+    qd.data =  K*J_pinv*sd + N * q0_dot;
+
     return qd;
 }
