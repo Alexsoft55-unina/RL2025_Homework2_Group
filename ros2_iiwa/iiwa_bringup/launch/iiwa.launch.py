@@ -389,17 +389,17 @@ def generate_launch_description():
     )
 
     bridge_camera = Node(
-        package='ros_gz_bridge',
-        executable='parameter_bridge',
-        arguments=[
-            '/camera@sensor_msgs/msg/Image@gz.msgs.Image',
-            '/camera_info@sensor_msgs/msg/CameraInfo@gz.msgs.CameraInfo',
-            '--ros-args', 
-            '--remap', '/camera:=/videocamera',
-            '--remap', '/camera_info:=/videocamera_info',
-        ],
-        output='screen'
-    )
+    package='ros_gz_bridge',
+    executable='parameter_bridge',
+    arguments=[
+        '/camera@sensor_msgs/msg/Image@gz.msgs.Image',
+        '/camera_info@sensor_msgs/msg/CameraInfo@gz.msgs.CameraInfo',
+        '--ros-args', 
+        '--remap', '/camera:=/videocamera',
+        '--remap', '/camera_info:=/videocamera_info',
+    ],
+    output='screen'
+)
     aruco_node = Node(
         package='aruco_ros',
         executable='single',
@@ -416,7 +416,17 @@ def generate_launch_description():
             ('/camera_info', '/videocamera_info')
         ]
         )
-
+    bridge_set_pose = Node(
+        package='ros_gz_bridge',
+        executable='parameter_bridge',
+        arguments=[
+            '/world/aruco_world/set_pose@ros_gz_interfaces/srv/SetEntityPose@gz.msgs.Pose@gz.msgs.Boolean',
+        ],
+        remappings=[
+            ('/world/aruco_world/set_pose', '/set_aruco_pose'),
+        ],
+        output='screen'
+        )
     nodes = [
         gazebo,
         control_node,
@@ -431,6 +441,7 @@ def generate_launch_description():
         delay_robot_controller_spawner_after_joint_state_broadcaster_spawner,
         bridge_camera, 
         aruco_node,
+        bridge_set_pose,
     ]
 
     return LaunchDescription(declared_arguments + nodes)

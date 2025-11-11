@@ -207,7 +207,7 @@ KDL::Jacobian KDLRobot::getEEBodyJacobian()
     //    KDL::Frame ee_F_s = this->getEEPose().Inverse();
     //    KDL::Vector pkdl = ee_F_s.p;
     //    KDL::Rotation M = ee_F_s.M;
-    //    std::cout << adjoint(toEigen(pkdl),toEigen(M))*s_J_ee_.data << std::endl;
+    //    std::cout << adjoint( (pkdl),toEigen(M))*s_J_ee_.data << std::endl;
     //    s_J_ee_.changeRefFrame(ee_F_s);
     //    std::cout << s_J_ee_.data << std::endl;
     //    return adjoint(toEigen(pkdl),toEigen(M))*s_J_ee_.data;
