@@ -19,6 +19,7 @@ find_package(geometry_msgs REQUIRED)
 find_package(rclcpp_action REQUIRED)
 find_package(action_msgs REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
+find_package(tf2_ros REQUIRED)
 
 # ======== Generazione action ========
 rosidl_generate_interfaces(${PROJECT_NAME}
@@ -52,6 +53,7 @@ ament_target_dependencies(ros2_kdl_node
   sensor_msgs
   std_msgs
   geometry_msgs
+  tf2_ros
 )
 
 # ======== Collega le action generate al nodo ========

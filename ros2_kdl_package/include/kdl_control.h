@@ -32,7 +32,7 @@ public:
                                     int Kp);
 
                                     
-    KDL::JntArray vision_ctrl();
+    KDL::JntArray vision_ctrl(int Kp, Eigen::Vector3d cPo,Eigen::Vector3d sd, Eigen::Matrix<double,3,3> Rc);
 
 private:
 
