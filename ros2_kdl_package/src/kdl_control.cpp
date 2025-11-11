@@ -91,7 +91,81 @@ KDL::JntArray KDLController::velocity_ctrl_null(Eigen::Matrix<double,6,1> error_
 
 KDL::JntArray KDLController::vision_ctrl(int Kp, Eigen::Vector3d cPo,Eigen::Vector3d sd, Eigen::Matrix<double,3,3> Rc)
 {
- //PER ADESSO ASSUMIAMO J = Jc
- KDL::JntArray qd;
+    unsigned int nj = robot_->getNrJnts();
+
+    Eigen::Matrix<double,3,3> K;
+    K = Kp*Eigen::Matrix<double,3,3>::Identity();
+
+    Eigen::Matrix<double,6,6> R =Eigen::Matrix<double,6,6>::Zero();
+
+    R.block<3, 3>(0, 0) = Rc;
+    R.block<3, 3>(3, 3) = Rc;
+
+    Eigen::Vector3d s;
+    for (int i=0; i<3; i++){
+        s(i) = cPo(i)/cPo.norm();
+    }
+    Eigen::Matrix<double,3,3> L1;
+    L1 = -1/cPo.norm()* (Eigen::Matrix3d::Identity() - s*s.transpose());
+
+    Eigen::Matrix3d S_skew;
+    S_skew <<     0, -s.z(),  s.y(),
+                 s.z(),      0, -s.x(),
+                -s.y(),  s.x(),      0;
+
+    Eigen::Matrix<double,3,3> L2;
+    L2 = S_skew;
+
+    Eigen::Matrix<double, 3, Eigen::Dynamic> L;
+
+    L = Eigen::Matrix<double,3,6>::Zero();
+    L.block<3, 3>(0, 0) = L1;
+    L.block<3, 3>(0, 3) = L2;
+    
+    L = L*R;
+
+    Eigen::MatrixXd J;
+    J = robot_->getEEJacobian().data;
+
+    //PER ADESSO ASSUMIAMO J = Jc <<<<<<<----------------------------
+    Eigen::MatrixXd Jc;
+    Jc  = J;
+
+    Eigen::MatrixXd I;
+    I = Eigen::MatrixXd::Identity(nj,nj);
+
+    Eigen::MatrixXd JntLimits_ (nj,2);
+    JntLimits_ = robot_->getJntLimits();
+
+    Eigen::VectorXd q_min(nj);
+    Eigen::VectorXd q_max(nj);
+    q_min = JntLimits_.col(0);
+    q_max = JntLimits_.col(1);
+
+    Eigen::VectorXd q(nj);
+    q  = robot_->getJntValues();
+
+    double lambda = 50;
+
+    Eigen::VectorXd q0_dot(nj);
+    for (unsigned int i = 0; i<nj; i++) {
+        
+        double L =(q_max(i) - q_min(i))*(q_max(i) - q_min(i));
+
+        double G = (2*q(i) - q_max(i) - q_min(i));
+
+        double D = (q_max(i)- q(i))*(q(i)- q_min(i));
+
+        q0_dot(i) = 1/lambda*L*G/(D*D);
+
+    }
+
+    Eigen::MatrixXd N (nj,nj);
+
+    N = I - pseudoinverse(J)*J;
+
+    KDL::JntArray qd(nj);
+    qd.data = K * pseudoinverse(L*J)*sd + N * q0_dot;
+ 
     return qd;
 }

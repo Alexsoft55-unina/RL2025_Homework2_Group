@@ -489,10 +489,10 @@ MarkerPoseSubscriber_ = this->create_subscription<geometry_msgs::msg::PoseStampe
 
         void aruco_pose_subscriber(const geometry_msgs::msg::PoseStamped& pose_stamped_msg){
             pose_state_available_ = true;
-            s(0) = pose_stamped_msg.pose.position.x;
-            s(1) = pose_stamped_msg.pose.position.y;
-            s(2) = pose_stamped_msg.pose.position.z;
-            RCLCPP_INFO(this->get_logger(), "s = [%f %f %f]", s[0], s[1], s[2]);
+            cPo_(0) = pose_stamped_msg.pose.position.x;
+            cPo_(1) = pose_stamped_msg.pose.position.y;
+            cPo_(2) = pose_stamped_msg.pose.position.z;
+            //RCLCPP_INFO(this->get_logger(), "cPo_= [%f %f %f]", cPo_[0], cPo_[1], cPo_[2]);
         }
         rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr MarkerPoseSubscriber_;
         rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr jointSubscriber_;
@@ -509,7 +509,7 @@ MarkerPoseSubscriber_ = this->create_subscription<geometry_msgs::msg::PoseStampe
         KDL::JntArray joint_velocities_cmd_;
         KDL::JntArray joint_efforts_cmd_;
 
-        Eigen::Vector3d s;
+        Eigen::Vector3d cPo_;
 
         std::shared_ptr<KDLRobot> robot_;
         KDLPlanner planner_;
