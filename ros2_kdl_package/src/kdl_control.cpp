@@ -111,7 +111,7 @@ KDL::JntArray KDLController::vision_ctrl(int Kp, Eigen::Vector3d cPo,Eigen::Vect
                 ss.str().c_str());
 */
     Eigen::MatrixXd K(nj,nj);
-    K = Kp*K.Identity(nj,nj);
+    K = 3*Kp*K.Identity(nj,nj);
 
     Eigen::Matrix<double,6,6> R =Eigen::Matrix<double,6,6>::Zero();
 
@@ -122,6 +122,10 @@ KDL::JntArray KDLController::vision_ctrl(int Kp, Eigen::Vector3d cPo,Eigen::Vect
     for (int i=0; i<3; i++){
         s(i) = cPo(i)/cPo.norm();
     }
+    RCLCPP_INFO(rclcpp::get_logger("KDLController"),
+                "vector s: %f %f %f",
+                s(0),s(1),s(2));
+    
     Eigen::Matrix<double,3,3> L1;
     L1 = -1/cPo.norm()* (Eigen::Matrix3d::Identity() - s*s.transpose());
 
