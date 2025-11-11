@@ -30,3 +30,6 @@ export GZ_SIM_RESOURCE_PATH=$GZ_SIM_RESOURCE_PATH:$HOME/ros2_ws/src/iiwa_descrip
 export GZ_SIM_RESOURCE_PATH=$GZ_SIM_RESOURCE_PATH:$HOME/ros2_ws/install/iiwa_description/share/iiwa_description/gazebo/models
 ```
 
+```
+ros2 service call /set_aruco_pose ros_gz_interfaces/srv/SetEntityPose '{"entity": {"name": "aruco_tag", "type": 2}, "pose": {"position": {"x": 1.0, "y": 0.0, "z": 0.5}, "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}}}'
+```
