@@ -91,12 +91,12 @@ class Iiwa_pub_sub : public rclcpp::Node
             
             
 
-            // declare ctrl parameter (velocity_ctrl, velocity_ctrl_null)
+            // declare ctrl parameter (velocity_ctrl, velocity_ctrl_null, vision)
             declare_parameter("ctrl", "velocity_ctrl"); // default to "velocity_ctrl"
             get_parameter("ctrl", ctrl_);
             
 
-             if (!(ctrl_ == "velocity_ctrl" || ctrl_ == "velocity_ctrl_null" ))
+             if (!(ctrl_ == "velocity_ctrl" || ctrl_ == "velocity_ctrl_null" || ctrl_ == "vision"))
             {
                 RCLCPP_ERROR(get_logger(),"Selected ctrl is not valid! Use 'velocity_ctrl' or 'velocity_ctrl_null instead..."); return;
             }else{
@@ -371,6 +371,11 @@ class Iiwa_pub_sub : public rclcpp::Node
                         error_position << error, o_error;   
                         joint_velocities_cmd_ = controller_.velocity_ctrl_null(error_position, Kp);
                     }
+                    else if(ctrl_=="vision"){
+                        Eigen::Matrix<double,6,1> error_position;
+                        error_position << error, o_error;   
+                        joint_velocities_cmd_ = controller_.velocity_ctrl_null(error_position, Kp);
+                    }
                
                 }
                 else if(cmd_interface_ == "effort"){
@@ -583,6 +588,8 @@ class Iiwa_pub_sub : public rclcpp::Node
             Eigen::Matrix<double,6,1> error_position;
             error_position << error, Eigen::Vector3d::Zero();
             joint_velocities_cmd_ = controller_.velocity_ctrl_null(error_position, Kp);
+        } else if (ctrl_ == "vision") {
+            joint_velocities_cmd_ = controller_.vision();
         }
 
         // Aggiorna robot e pubblica il comando

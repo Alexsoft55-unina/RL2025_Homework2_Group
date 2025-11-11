@@ -31,6 +31,9 @@ public:
     KDL::JntArray velocity_ctrl_null(Eigen::Matrix<double,6,1> error_position,
                                     int Kp);
 
+                                    
+    KDL::JntArray vision_ctrl();
+
 private:
 
     KDLRobot* robot_;
