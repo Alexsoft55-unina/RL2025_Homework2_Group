@@ -602,26 +602,20 @@ class Iiwa_pub_sub : public rclcpp::Node
     RCLCPP_INFO(this->get_logger(), "Trajectory execution completed successfully.");
 	
 	
+// Stop
+std_msgs::msg::Float64MultiArray cmd_msg;
 
 if(cmd_interface_ == "position"){
-    // Imposta direttamente la posizione finale
-    KDL::Frame finalFrame;
-    finalFrame.p = toKDL(p_.pos);  // punto finale della traiettoria
-    finalFrame.M = init_cart_pose_.M; // orientazione iniziale o target se vuoi
-    robot_->getInverseKinematics(finalFrame, joint_positions_cmd_);
-
-    std_msgs::msg::Float64MultiArray cmd_msg;
+ 
     cmd_msg.data.assign(joint_positions_cmd_.data.data(),
                         joint_positions_cmd_.data.data() + joint_positions_cmd_.rows());
-    cmdPublisher_->publish(cmd_msg);
 }
-else if(cmd_interface_ == "velocity"){
-    // Zero velocity come già fatto
-    std_msgs::msg::Float64MultiArray cmd_msg;
+else if(cmd_interface_ == "velocity" || cmd_interface_ == "effort"){
     cmd_msg.data.resize(joint_velocities_cmd_.rows());
     std::fill(cmd_msg.data.begin(), cmd_msg.data.end(), 0.0);
-    cmdPublisher_->publish(cmd_msg);
 }
+
+cmdPublisher_->publish(cmd_msg);
 
 
 
