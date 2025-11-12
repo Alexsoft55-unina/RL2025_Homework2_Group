@@ -21,6 +21,25 @@
 #include "kdl_control.h"
 #include "kdl_planner.h"
 #include "kdl_parser/kdl_parser.hpp"
+
+#include "rclcpp_action/rclcpp_action.hpp" 
+#include "ros2_kdl_package/action/execute_trajectory.hpp"
+
+
+#include "rclcpp_action/rclcpp_action.hpp"
+#include "ros2_kdl_package/action/execute_trajectory.hpp"
+
+
+#include "geometry_msgs/msg/pose_stamped.hpp"
+#include "geometry_msgs/msg/transform_stamped.hpp"
+
+#include "tf2_ros/transform_broadcaster.h"
+#include "tf2_ros/buffer.h"
+#include "tf2_ros/transform_listener.h"
+
+
+
+
  
 using namespace KDL;
 using FloatArray = std_msgs::msg::Float64MultiArray;
@@ -29,38 +48,74 @@ using namespace std::chrono_literals;
 class Iiwa_pub_sub : public rclcpp::Node
 {
     public:
+    
+    using ExecuteTrajectory = ros2_kdl_package::action::ExecuteTrajectory;  /////
+    using GoalHandleExecuteTrajectory = rclcpp_action::ServerGoalHandle<ExecuteTrajectory>; ////
+    
         Iiwa_pub_sub()
         : Node("ros2_kdl_node"), 
         node_handle_(std::shared_ptr<Iiwa_pub_sub>(this))
         {
         
+        /////////////
+        
+        using namespace std::placeholders;   
+        
+         this->action_server_ = rclcpp_action::create_server<ExecuteTrajectory>(
+           this,
+           "ExecuteTrajectory",
+           std::bind(&Iiwa_pub_sub::handle_goal, this, _1, _2),
+           std::bind(&Iiwa_pub_sub::handle_cancel, this, _1),
+           std::bind(&Iiwa_pub_sub::handle_accepted, this, _1));
+           
+        //////////
   
         declare_parameter("traj_duration", rclcpp::PARAMETER_DOUBLE);
-	declare_parameter("total_time", rclcpp::PARAMETER_DOUBLE);
-	declare_parameter("trajectory_len", rclcpp::PARAMETER_INTEGER);
-	declare_parameter("Kp", rclcpp::PARAMETER_INTEGER);
-	declare_parameter("end_position", rclcpp::PARAMETER_DOUBLE_ARRAY);
-	declare_parameter("acc_duration", rclcpp::PARAMETER_DOUBLE);
+	    declare_parameter("total_time", rclcpp::PARAMETER_DOUBLE);
+	    declare_parameter("trajectory_len", rclcpp::PARAMETER_INTEGER);
+	    declare_parameter("Kp", rclcpp::PARAMETER_INTEGER);
+	    declare_parameter("end_position", rclcpp::PARAMETER_DOUBLE_ARRAY);
+	    declare_parameter("acc_duration", rclcpp::PARAMETER_DOUBLE);
 
-	get_parameter("traj_duration", traj_duration_);
-	get_parameter("total_time", total_time_);
-	get_parameter("trajectory_len", trajectory_len_);
-	get_parameter("Kp", Kp_);
-	get_parameter("end_position", end_position_);
-	get_parameter("acc_duration", acc_duration_);
+	    get_parameter("traj_duration", traj_duration_);
+	    get_parameter("total_time", total_time_);
+	    get_parameter("trajectory_len", trajectory_len_);
+	    get_parameter("Kp", Kp_);
+	    get_parameter("end_position", end_position_);
+	    get_parameter("acc_duration", acc_duration_);
         	
         	
             // declare cmd_interface parameter (position, velocity)
-            declare_parameter("cmd_interface", "position"); // default to "position"
+            declare_parameter("cmd_interface", "velocity"); // default to "position"
             get_parameter("cmd_interface", cmd_interface_);
-            RCLCPP_INFO(get_logger(),"Current cmd interface is: '%s'", cmd_interface_.c_str());
+            //cmd_interface_="velocity";   //DEBUG
+
+           
 
             if (!(cmd_interface_ == "position" || cmd_interface_ == "velocity" || cmd_interface_ == "effort" ))
             {
                 RCLCPP_ERROR(get_logger(),"Selected cmd interface is not valid! Use 'position', 'velocity' or 'effort' instead..."); return;
+            }else{
+            
+            	 RCLCPP_INFO(get_logger(),"Current cmd interface is: '%s'", cmd_interface_.c_str());
             }
             
-            cmd_interface_="velocity";   ////////////////
+            
+
+            // declare ctrl parameter (velocity_ctrl, velocity_ctrl_null, vision)
+            declare_parameter("ctrl", "velocity_ctrl"); // default to "velocity_ctrl"
+            get_parameter("ctrl", ctrl_);
+            
+
+             if (!(ctrl_ == "velocity_ctrl" || ctrl_ == "velocity_ctrl_null" || ctrl_ == "vision"))
+            {
+                RCLCPP_ERROR(get_logger(),"Selected ctrl is not valid! Use 'velocity_ctrl' or 'velocity_ctrl_null instead..."); return;
+            }else{
+            	RCLCPP_INFO(get_logger(),"Current ctrl is: '%s'", ctrl_.c_str());
+            }
+
+
+
 
             // declare traj_type parameter (linear, circular)
             declare_parameter("traj_type", "linear");
@@ -116,15 +171,17 @@ class Iiwa_pub_sub : public rclcpp::Node
             joint_velocities_cmd_.resize(nj); 
             joint_efforts_cmd_.resize(nj); joint_efforts_cmd_.data.setZero();
 
+            auto qos_profile = rclcpp::QoS(rclcpp::KeepLast(10)).reliable();
+
+
+            MarkerPoseSubscriber_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
+                "/aruco_single/pose", qos_profile, std::bind(&Iiwa_pub_sub::aruco_pose_subscriber, this, std::placeholders::_1));
+      
             // Subscriber to jnt states
             jointSubscriber_ = this->create_subscription<sensor_msgs::msg::JointState>(
                 "/joint_states", 10, std::bind(&Iiwa_pub_sub::joint_state_subscriber, this, std::placeholders::_1));
 
-            // Wait for the joint_state topic
-            while(!joint_state_available_){
-                RCLCPP_INFO(this->get_logger(), "No data received yet! ...");
-                rclcpp::spin_some(node_handle_);
-            }
+   
 
             // Update KDLrobot object
             robot_->update(toStdVector(joint_positions_.data),toStdVector(joint_velocities_.data));
@@ -190,6 +247,7 @@ class Iiwa_pub_sub : public rclcpp::Node
             if(cmd_interface_ == "position"){
                 // Create cmd publisher
                 cmdPublisher_ = this->create_publisher<FloatArray>("/iiwa_arm_controller/commands", 10);
+                /*
                 timer_ = this->create_wall_timer(std::chrono::milliseconds(100), 
                                             std::bind(&Iiwa_pub_sub::cmd_publisher, this));
             
@@ -197,10 +255,12 @@ class Iiwa_pub_sub : public rclcpp::Node
                 for (long int i = 0; i < joint_positions_.data.size(); ++i) {
                     desired_commands_[i] = joint_positions_(i);
                 }
+                */
             }
             else if(cmd_interface_ == "velocity"){
                 // Create cmd publisher
                 cmdPublisher_ = this->create_publisher<FloatArray>("/velocity_controller/commands", 10);
+                /*
                 timer_ = this->create_wall_timer(std::chrono::milliseconds(100), 
                                             std::bind(&Iiwa_pub_sub::cmd_publisher, this));
             
@@ -208,10 +268,12 @@ class Iiwa_pub_sub : public rclcpp::Node
                 for (long int i = 0; i < joint_velocities_.data.size(); ++i) {
                     desired_commands_[i] = joint_velocities_(i);
                 }
+                */
             }
             else if(cmd_interface_ == "effort"){
                 // Create cmd publisher
                 cmdPublisher_ = this->create_publisher<FloatArray>("/effort_controller/commands", 10);
+                /*
                 timer_ = this->create_wall_timer(std::chrono::milliseconds(100), 
                                             std::bind(&Iiwa_pub_sub::cmd_publisher, this));
             
@@ -219,8 +281,10 @@ class Iiwa_pub_sub : public rclcpp::Node
                 for (long int i = 0; i < joint_efforts_cmd_.data.size(); ++i) {
                     desired_commands_[i] = joint_efforts_cmd_(i);
                 }
+                */
             } 
-
+            std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
+            std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
             // Create msg and publish
             std_msgs::msg::Float64MultiArray cmd_msg;
             cmd_msg.data = desired_commands_;
@@ -232,7 +296,10 @@ class Iiwa_pub_sub : public rclcpp::Node
     private:
     
     
-    KDLController controller_;////////////////////////////
+    KDLController controller_;
+    
+    rclcpp_action::Server<ExecuteTrajectory>::SharedPtr action_server_;  //////
+
 
     
     // Parameters
@@ -309,23 +376,20 @@ class Iiwa_pub_sub : public rclcpp::Node
                     robot_->getInverseKinematics(nextFrame, joint_positions_cmd_);
                 }
                 else if(cmd_interface_ == "velocity"){
-                    Eigen::MatrixXd JntLimits_ (7,2);
-                    JntLimits_ = robot_->getJntLimits();
-                    Eigen::VectorXd q_min(7);
-                    q_min = JntLimits_.col(0);
-                    for (unsigned int i = 0; i<7; i++) {
-                        RCLCPP_INFO(this->get_logger(), "q_min( %d )= %f" , i, q_min(i));      
+                    if(ctrl_=="velocity_ctrl"){
+                        Vector6d cartvel; cartvel << p_.vel + Kp*error, o_error;
+                        joint_velocities_cmd_.data = pseudoinverse(robot_->getEEJacobian().data)*cartvel;
                     }
-
-
-                    Eigen::Matrix<double,6,1> error_position;
-                    error_position << error, o_error;   
-                    joint_velocities_cmd_ = controller_.velocity_ctrl_null(error_position, Kp);
-                    
-                    //Vector6d cartvel; cartvel << p_.vel + Kp*error, o_error;
-                    //  joint_velocities_cmd_.data = pseudoinverse(robot_->getEEJacobian().data)*cartvel;
-
-                                    
+                    else if(ctrl_=="velocity_ctrl_null"){
+                        Eigen::Matrix<double,6,1> error_position;
+                        error_position << error, o_error;   
+                        joint_velocities_cmd_ = controller_.velocity_ctrl_null(error_position, Kp);
+                    }
+                    else if(ctrl_=="vision"){
+                        Eigen::Vector3d sd(0,0,1);//desired direction
+                        joint_velocities_cmd_ = controller_.vision_ctrl(Kp, cPo_, sd);
+                    }
+               
                 }
                 else if(cmd_interface_ == "effort"){
                     joint_efforts_cmd_.data[0] = 0.1*std::sin(2*M_PI*t_/total_time);
@@ -417,6 +481,14 @@ class Iiwa_pub_sub : public rclcpp::Node
             }
         }
 
+        void aruco_pose_subscriber(const geometry_msgs::msg::PoseStamped& pose_stamped_msg){
+            pose_state_available_ = true;
+            cPo_(0) = pose_stamped_msg.pose.position.x;
+            cPo_(1) = pose_stamped_msg.pose.position.y;
+            cPo_(2) = pose_stamped_msg.pose.position.z;
+            //RCLCPP_INFO(this->get_logger(), "cPo_= [%f %f %f]", cPo_[0], cPo_[1], cPo_[2]);
+        }
+        rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr MarkerPoseSubscriber_;
         rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr jointSubscriber_;
         rclcpp::Publisher<FloatArray>::SharedPtr cmdPublisher_;
         rclcpp::TimerBase::SharedPtr timer_; 
@@ -431,6 +503,8 @@ class Iiwa_pub_sub : public rclcpp::Node
         KDL::JntArray joint_velocities_cmd_;
         KDL::JntArray joint_efforts_cmd_;
 
+        Eigen::Vector3d cPo_;
+
         std::shared_ptr<KDLRobot> robot_;
         KDLPlanner planner_;
 
@@ -438,12 +512,158 @@ class Iiwa_pub_sub : public rclcpp::Node
 
         int iteration_;
         bool joint_state_available_;
+        bool pose_state_available_;
         double t_;
         std::string cmd_interface_;
+        std::string ctrl_;
         std::string traj_type_;
         std::string s_type_;
 
         KDL::Frame init_cart_pose_;
+        
+        //std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
+        //std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
+        
+        
+        
+        
+        /////////////////////////////////
+        
+        
+        
+        
+        
+        
+          rclcpp_action::GoalResponse handle_goal(
+          const rclcpp_action::GoalUUID & uuid,
+          std::shared_ptr<const ExecuteTrajectory::Goal> goal){
+          
+    	      RCLCPP_INFO(this->get_logger(), "Received goal request with order %d", goal->order);
+    	      (void)uuid;
+    	      return rclcpp_action::GoalResponse::ACCEPT_AND_EXECUTE;
+    		
+  	  }
+        
+        
+        
+          rclcpp_action::CancelResponse handle_cancel(
+    	  const std::shared_ptr<GoalHandleExecuteTrajectory> goal_handle){
+    	  
+    	  	RCLCPP_INFO(this->get_logger(), "Received request to cancel goal");
+    		(void)goal_handle;
+    		return rclcpp_action::CancelResponse::ACCEPT;
+    		
+  	  }
+  	  
+  	  
+  	  void handle_accepted(const std::shared_ptr<GoalHandleExecuteTrajectory> goal_handle){
+          	using namespace std::placeholders;
+    		// this needs to return quickly to avoid blocking the executor, so spin up a new thread
+    		std::thread{std::bind(&Iiwa_pub_sub::execute, this, _1), goal_handle}.detach();
+  }
+        
+        
+        
+        
+    void execute(const std::shared_ptr<GoalHandleExecuteTrajectory> goal_handle){
+            
+        RCLCPP_INFO(this->get_logger(), "Starting trajectory execution (Action Server)...");
+
+        // Prepara feedback e result
+        auto feedback = std::make_shared<ExecuteTrajectory::Feedback>();
+        auto result = std::make_shared<ExecuteTrajectory::Result>();
+
+        rclcpp::Rate rate(50);  // 50 Hz aggiornamento
+        double total_time = total_time_;
+        double dt = 1.0 / 50.0;
+        double t = 0.0;
+        int Kp = Kp_;
+
+        while (rclcpp::ok() && t < total_time) {
+            // if the client asks to cancel
+            if (goal_handle->is_canceling()) {
+                RCLCPP_INFO(this->get_logger(), "Goal canceled by client");
+                goal_handle->canceled(result);
+                return;
+            }
+
+            
+            if (traj_type_ == "linear") {
+                if (s_type_ == "trapezoidal")
+                    p_ = planner_.linear_traj_trapezoidal(t);
+                else
+                    p_ = planner_.linear_traj_cubic(t);
+            }
+
+        
+            KDL::Frame cartpos = robot_->getEEFrame();
+
+            
+            Eigen::Vector3d error = computeLinearError(p_.pos, Eigen::Vector3d(cartpos.p.data));
+
+            // publish the error as feedback
+            feedback->position_error = {error(0), error(1), error(2)};
+            goal_handle->publish_feedback(feedback);
+
+            //
+            if (ctrl_ == "velocity_ctrl") {
+                Vector6d cartvel; 
+                cartvel << p_.vel + Kp * error, Eigen::Vector3d::Zero(); // niente controllo orientazione per ora
+                joint_velocities_cmd_.data = pseudoinverse(robot_->getEEJacobian().data) * cartvel;
+            } else if (ctrl_ == "velocity_ctrl_null") {
+                Eigen::Matrix<double,6,1> error_position;
+                error_position << error, Eigen::Vector3d::Zero();
+                joint_velocities_cmd_ = controller_.velocity_ctrl_null(error_position, Kp);
+            } else if (ctrl_ == "vision") {
+                
+                Eigen::Vector3d sd(0,0,1);//desired direction
+                joint_velocities_cmd_ = controller_.vision_ctrl(Kp, cPo_, sd);
+            }
+
+            // Aggiorna robot e pubblica il comando
+            robot_->update(toStdVector(joint_positions_.data), toStdVector(joint_velocities_.data));
+            std_msgs::msg::Float64MultiArray cmd_msg;
+            cmd_msg.data.assign(joint_velocities_cmd_.data.data(),
+                                joint_velocities_cmd_.data.data() + joint_velocities_cmd_.rows());
+            cmdPublisher_->publish(cmd_msg);
+
+            t += dt;
+            rate.sleep();
+        }
+
+        // Completato
+        result->success = true;
+        goal_handle->succeed(result);
+        RCLCPP_INFO(this->get_logger(), "Trajectory execution completed successfully.");
+        
+        
+    // Stop
+    std_msgs::msg::Float64MultiArray cmd_msg;
+
+    if(cmd_interface_ == "position"){
+    
+        cmd_msg.data.assign(joint_positions_cmd_.data.data(),
+                            joint_positions_cmd_.data.data() + joint_positions_cmd_.rows());
+    }
+    else if(cmd_interface_ == "velocity" || cmd_interface_ == "effort"){
+        cmd_msg.data.resize(joint_velocities_cmd_.rows());
+        std::fill(cmd_msg.data.begin(), cmd_msg.data.end(), 0.0);
+    }
+
+    cmdPublisher_->publish(cmd_msg);
+
+}
+
+        
+        
+        
+        
+        
+        ///////////////////////////////////
+        
+        
+        
+        
 };
 
  

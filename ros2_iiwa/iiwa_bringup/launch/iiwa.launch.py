@@ -17,9 +17,10 @@ from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument, Regi
 from launch.conditions import IfCondition, UnlessCondition
 from launch.event_handlers import OnProcessExit, OnProcessStart
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import Command, FindExecutable, LaunchConfiguration, PathJoinSubstitution, OrSubstitution
+from launch.substitutions import Command, FindExecutable, LaunchConfiguration, PathJoinSubstitution, OrSubstitution, TextSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
+
 
 
 def generate_launch_description():
@@ -293,22 +294,24 @@ def generate_launch_description():
         ],
         condition=UnlessCondition(OrSubstitution(use_planning, use_sim)),
     )
+
     iiwa_simulation_world = PathJoinSubstitution(
         [FindPackageShare(description_package),
-            'gazebo/worlds', 'empty.world']
+            'gazebo/worlds', 'aruco_world']
+    )
+    
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            'gz_args',
+            # default_value ora è una lista di Substitution
+            default_value=[
+                TextSubstitution(text='-r -v 1 '),  # La tua stringa (nota lo spazio alla fine)
+                iiwa_simulation_world               # Il tuo percorso
+            ],
+            description='Arguments for gz_sim'
+        )
     )
 
-    declared_arguments.append(DeclareLaunchArgument('gz_args', default_value='-r -v 1 empty.sdf',
-                              description='Arguments for gz_sim'),)
-        
-    """declared_arguments.append(DeclareLaunchArgument('gz_args', default_value=iiwa_simulation_world,
-                            description='Arguments for gz_sim'),)"""
-    
-    """
-    export GZ_SIM_RESOURCE_PATH=$GZ_SIM_RESOURCE_PATH:world_simulation_models
-        Siccome il suo empty.world si richiama un ground plane e un sun, assicurati di avere tali modelli installati da qualche
-        parte sul tuo pc, e metti quel percorso nella EV
-    """
     gazebo = IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 [PathJoinSubstitution([FindPackageShare('ros_gz_sim'),
@@ -317,6 +320,7 @@ def generate_launch_description():
             launch_arguments={'gz_args': LaunchConfiguration('gz_args')}.items(),
             condition=IfCondition(use_sim),
     )
+
 
     spawn_entity = Node(
         package='ros_gz_sim',
@@ -384,6 +388,45 @@ def generate_launch_description():
         )
     )
 
+    bridge_camera = Node(
+    package='ros_gz_bridge',
+    executable='parameter_bridge',
+    arguments=[
+        '/camera@sensor_msgs/msg/Image@gz.msgs.Image',
+        '/camera_info@sensor_msgs/msg/CameraInfo@gz.msgs.CameraInfo',
+        '--ros-args', 
+        '--remap', '/camera:=/videocamera',
+        '--remap', '/camera_info:=/videocamera_info',
+    ],
+    output='screen'
+)
+    aruco_node = Node(
+        package='aruco_ros',
+        executable='single',
+        name='aruco_single',
+        output='screen',
+        parameters=[{
+            'marker_id': 20,
+            'marker_size': 0.1,
+            'marker_frame': 'aruco_marker',
+            'camera_frame': 'camera_link'
+        }],
+        remappings=[
+            ('/image', '/videocamera'),
+            ('/camera_info', '/videocamera_info')
+        ]
+        )
+    bridge_set_pose = Node(
+        package='ros_gz_bridge',
+        executable='parameter_bridge',
+        arguments=[
+            '/world/aruco_world/set_pose@ros_gz_interfaces/srv/SetEntityPose@gz.msgs.Pose@gz.msgs.Boolean',
+        ],
+        remappings=[
+            ('/world/aruco_world/set_pose', '/set_aruco_pose'),
+        ],
+        output='screen'
+        )
     nodes = [
         gazebo,
         control_node,
@@ -396,6 +439,9 @@ def generate_launch_description():
         delay_rviz_after_joint_state_broadcaster_spawner,
         external_torque_broadcaster_spawner,
         delay_robot_controller_spawner_after_joint_state_broadcaster_spawner,
+        bridge_camera, 
+        aruco_node,
+        bridge_set_pose,
     ]
 
     return LaunchDescription(declared_arguments + nodes)
