@@ -94,22 +94,16 @@ KDL::JntArray KDLController::velocity_ctrl_null(Eigen::Matrix<double,6,1> error_
     return qd;
 }
 
+
+
+
+
 KDL::JntArray KDLController::vision_ctrl(int Kp, Eigen::Vector3d cPo,Eigen::Vector3d sd )
 {
     unsigned int nj = robot_->getNrJnts();
 
     Eigen::Matrix<double,3,3> Rc;
-    Rc = toEigen(robot_->getEEFrame().M);
-/*
-    // 1. Crea uno stringstream per "stampare" la matrice
-    std::stringstream ss;
-    ss << Rc;
-
-    // 2. Passa la stringa C-style (.c_str()) al logger
-    RCLCPP_INFO(rclcpp::get_logger("KDLController"),
-                "Block Rotation matrix R: \n%s",
-                ss.str().c_str());
-*/
+    Rc = toEigen(robot_->getEEFrame().M);//assumiamo che la matrice di rotazione siano approssimabili
     Eigen::MatrixXd K(nj,nj);
     K = 3*Kp*K.Identity(nj,nj);
 
@@ -122,6 +116,8 @@ KDL::JntArray KDLController::vision_ctrl(int Kp, Eigen::Vector3d cPo,Eigen::Vect
     for (int i=0; i<3; i++){
         s(i) = cPo(i)/cPo.norm();
     }
+    
+    
     RCLCPP_INFO(rclcpp::get_logger("KDLController"),
                 "vector s: %f %f %f",
                 s(0),s(1),s(2));
@@ -147,10 +143,8 @@ KDL::JntArray KDLController::vision_ctrl(int Kp, Eigen::Vector3d cPo,Eigen::Vect
 
     Eigen::MatrixXd J;
     J = robot_->getEEJacobian().data;
-
-    //PER ADESSO ASSUMIAMO J = Jc <<<<<<<----------------------------
-    Eigen::MatrixXd Jc;
-    Jc  = J;
+    Eigen::MatrixXd Jc; 
+    Jc  = J; //assumiamo che i due jacobiani siano uguali
 
     
     Eigen::MatrixXd I;
@@ -190,5 +184,6 @@ KDL::JntArray KDLController::vision_ctrl(int Kp, Eigen::Vector3d cPo,Eigen::Vect
     KDL::JntArray qd(nj);
     qd.data =  K*J_pinv*sd + N * q0_dot;
 
+   
     return qd;
 }
